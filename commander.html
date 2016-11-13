@@ -1,0 +1,448 @@
+<!doctype html>
+<html>
+<head>
+ <meta charset="utf-8">
+ <link href='https://fonts.googleapis.com/css?family=Lato' rel='stylesheet'>
+ <meta name="viewport" content="width=device-width,minimum-scale=1">
+ <title>Battle Commander - Commander View</title>
+ <link rel=battleviewer href="/viewer">
+ <style>
+  table {
+   width: 100%;
+   border-collapse: collapse;
+   font-size: 20px;
+   text-align: left;
+   margin: 20px;
+  }
+  thead {
+   font-weight: bold;
+  }
+  tbody tr:nth-child(odd) {
+    background: #ccf;
+  }
+  td,th{
+   padding: 8px;
+   white-space: nowrap;
+  }
+  
+  .hidden {
+   display: none;
+  }
+
+  td.notes {
+   width: 100%;
+   white-space: normal;
+  }
+  td.controls {
+   cursor: pointer;
+  }
+  #stageTable td.controls span.moveDown {
+   display: none;
+  }
+  #charTable td.controls span.moveUp,
+  #charTable td.controls span.duplicate {
+   display: none;
+  }
+  td.markercolor {
+   background-clip: content-box;
+   border: 1px solid black;
+  }
+  td.markercolor.red {
+   background-color: red;
+  }
+  td.markercolor.yellow {
+   background-color: #CCCC00;
+  }
+  td.markercolor.orange {
+   background-color: orange;
+  }
+  td.markercolor.blue {
+   background-color: blue;
+  }
+  td.markercolor.green {
+   background-color: green;
+  }
+ </style>
+</head>
+<body onLoad="onLoad()">
+ <script>
+   var contents = "";
+   function postContentsIfChanged() {
+     var newcontents = document.getElementById("container").innerHTML;
+     if (newcontents !== contents) {
+       contents = newcontents;
+       var xhr = new XMLHttpRequest();
+       xhr.open("POST", "/commander", true);
+       xhr.send(contents);
+     }
+   }
+
+   // Functionality for starting/stopping updates to the viewer.
+   var intervalId;
+   function start() {
+     intervalId = setInterval(postContentsIfChanged, 500);
+     document.getElementById('startLink').setAttribute('class', 'hidden');
+     document.getElementById('pauseLink').setAttribute('class', '');
+   }
+   function pause() {
+     clearInterval(intervalId);
+     document.getElementById('startLink').setAttribute('class', '');
+     document.getElementById('pauseLink').setAttribute('class', 'hidden');
+   }
+
+   // Add/Remove classname from class list.
+   function removeClass(attr, toRemove) {
+      attr = attr.replace(new RegExp('\\b' + toRemove + '\\b'), '');
+      attr = attr.replace(new RegExp('  +'), ' ');
+      return attr;
+   }
+   function removeClasses(attr, toRemoveArr) {
+      var newAttr = attr;
+      for (var i = 0; i < toRemoveArr.length; ++i) {
+         newAttr = removeClass(newAttr, toRemoveArr[i]);
+      }
+      return newAttr;
+   }
+   function addClass(attr, toAdd) {
+     return attr += ' ' + toAdd;
+   }
+   // Ex: hasClass('foo bar baz', 'baz');
+   function hasClass(attr, className) {
+     return attr.search(className) !== -1;
+   }
+
+   // Given a table cell with hit points specified as "X / Y", computes a
+   // new class for the cell. The class is set to dead/poor/healthy for
+   // 0% / 0-50% / 50-100% thresholds.
+   function updateHitPoints(cell) {
+     var s = cell.textContent;
+     var split = s.split(" / ");
+     var cur = parseFloat(split[0]);
+     var max = parseFloat(split[1]);
+
+     var row = cell.parentNode;
+     if (row.nodeName !== "TR") {
+       console.error(tr);
+       return;
+     }
+
+     var className = removeClasses(row.className, ['dead', 'poor', 'healthy']);
+     
+     if (cur === 0) {
+       className = addClass(className, 'dead');     
+     } else if ((cur / max) <= 0.5) {
+       className = addClass(className, 'poor');
+     } else {
+       className = addClass(className, 'healthy');
+     }
+     row.className = className;
+   }
+   
+   function onLoad() {
+     // Make all table cells contenteditable
+     var cells = document.getElementsByTagName('td');
+     for (var i = 0; i < cells.length; ++i) {
+       var cell = cells[i];
+       if (cell.className !== 'controls' &&
+           cell.className.search('markercolor') === -1)
+         cell.setAttribute('contenteditable', true);
+     }
+
+     // Set a listener on edits to hitpoints.
+     var hpCells = document.getElementsByClassName('hitpoints');
+     for (var i = 0; i < hpCells.length; ++i) {
+       var cell = hpCells[i];
+       cell.addEventListener('input',
+         function(e) { updateHitPoints(e.target) });
+       updateHitPoints(cell);
+     }
+
+     // Setup controls links.
+     var controlsCells = document.querySelectorAll('td.controls');
+     for (var i = 0; i < controlsCells.length; ++i) {
+       var cell = controlsCells[i];
+       cell.innerHTML = 
+           '<span class="moveUp" onclick="moveUp(this)">↑</span>' +
+           '<span class="moveDown" onclick="moveDown(this)">↓</span>' +
+           '<span class="duplicate" onclick="duplicate(this)">↭</span>';
+     }
+
+     // Set colorpicker listeners
+     var colorCells = document.querySelectorAll('td.markercolor');
+     for (var i = 0; i < colorCells.length; ++i) {
+       var cell = colorCells[i];
+       cell.innerHTML = '&nbsp;&nbsp;';
+       cell.addEventListener('click', function(e) { rotateColor(e.target) });
+     }
+   }
+
+   // These functions move a table row between the visible and staging tables.
+   function moveUp(el) {
+    // <tr> > <td> > <span onclick=moveUp(this)>
+    var upTr = el.parentNode.parentNode;
+    var charTableBody = document.getElementById("charTable").tBodies[0];
+    var stageTable = document.getElementById("stageTable");
+    stageTable.deleteRow(upTr.rowIndex);
+    charTableBody.appendChild(upTr);
+   }
+   function moveDown(el) {
+    // <tr> > <td> > <span onclick=moveUp(this)>
+    var upTr = el.parentNode.parentNode;
+    var charTable = document.getElementById("charTable");
+    var stageTableBody = document.getElementById("stageTable").tBodies[0];;
+    charTable.deleteRow(upTr.rowIndex);
+    stageTableBody.appendChild(upTr);
+   }
+
+   // This function duplicates a row in the staging table, allowing the DM
+   // create copies of creatures as needed.
+   function duplicate(el) {
+    // <tr> > <td> > <span onclick=duplicate(this)>
+    var upTr = el.parentNode.parentNode;
+    var cloneTr = upTr.cloneNode(true);
+    cloneTr.querySelector('td.markercolor').addEventListener(
+      'click', function(e) { rotateColor(e.target) });
+    cloneTr.querySelector('td.hitpoints').addEventListener(
+        'input', function(e) { updateHitPoints(e.target) });
+    var stageTableBody = document.getElementById("stageTable").tBodies[0];
+    stageTableBody.appendChild(cloneTr);
+   }
+
+   // This is the click event listenter for clicks in the color box. It rotates
+   // between a selection of colors. I use small squares of felt of the same
+   // color to place beneath my monsters on the battle mat. Helps keep multiples
+   // of the same monster organized.
+   function rotateColor(el) {
+    var colors = ['red', 'green', 'yellow', 'blue', 'orange'];
+    for (var i = 0; i < colors.length; ++i) {
+      if (hasClass(el.className, colors[i])) {
+        el.className = removeClass(el.className, colors[i]);
+        if (i + 1 < colors.length) {
+          el.className = addClass(el.className, colors[i + 1]);
+        }
+        return;
+      }
+    }
+    el.className = addClass(el.className, colors[0]);
+   }
+
+   // Returns the result of a random D20 roll. Used for initiative calculations.
+   function d20() {
+     return Math.floor(Math.random() * 20) + 1;
+   }
+   // Returns a random initiative value, given an initial initiative bonus.
+   function initiative(bonus) {
+     return d20() + Number(bonus);
+   }
+   // Sets new initiative values for all rows in the staging area.
+   function randomizeInitiative() {
+     var bonusCells = document.querySelectorAll('#stageTable td.initbonus');
+     for (var i = 0; i < bonusCells.length; ++i) {
+       var bonusCell = bonusCells[i];
+       var initCell = bonusCell.nextElementSibling;
+
+       var initBonus = bonusCell.innerText;
+       initCell.innerHTML = initiative(initBonus);
+     }
+   }
+
+   // Sorts all of the rows in the shared area by initiative values.
+   function initiativeSort() {
+    var charTableBody = document.getElementById("charTable").tBodies[0];
+    var rows = [];
+    var numRows = charTableBody.rows.length;
+    for (var i = 0; i < numRows; i++) {
+      var row = charTableBody.rows[i];
+      var sortVal = parseFloat(row.querySelector('td.initiative').textContent);
+      rows.push([sortVal, row]);
+    }
+    rows.sort(function(x,y) {
+      // Higher initiative goes first.
+      return y[0] - x[0];
+    });
+    for (var i = 0; i < numRows; i++) {
+      charTableBody.appendChild(rows[i][1]);
+    }
+   }
+ </script>
+
+ <a href="#" onClick="initiativeSort()">Initiative Sort</a>
+ <span id=startLink>
+   &middot;
+   <a href="#" onClick="start()">Start</a>
+ </span>
+ <span id=pauseLink class=hidden>
+   &middot;
+   <a href="#" onClick="pause()">Pause</a>
+ </span>
+
+ <div id=container>
+  <table id="charTable">
+   <thead>
+    <tr>
+     <th class=controls></th>
+     <th class=markercolor></th>
+     <th class=name>Name</th>
+     <th class=hitpoints>Health</th>
+     <th class=initbonus>Init Bonus</th>
+     <th class=initiative>Initiative</th>
+     <th class=armorclass>AC</th>
+     <th class=speed>Speed</th>
+     <th class=notes>Notes</th>
+     <th class=hiddennotes>Hidden Notes</th>
+    </tr>
+   </thead>
+
+   <tr class="PC">
+    <td class="controls"></td>
+    <td class="markercolor"></td>
+    <td class="name">Amak Noon</td>
+    <td class="hitpoints">38 / 38</td>
+    <td class="initbonus">+3</td>
+    <td class="initiative">0</td>
+    <td class="armorclass">16</td>
+    <td class="speed">120 ft</td>
+    <td class="notes">boots of speed</td>
+    <td class="hiddennotes"></td>
+   </tr>
+   <tr class="PC">
+    <td class="controls"></td>
+    <td class="markercolor"></td>
+    <td class="name">Ureek-Ikki-Kleek</td>
+    <td class="hitpoints">45 / 45</td>
+    <td class="initbonus">+1</td>
+    <td class="initiative">0</td>
+    <td class="armorclass">13</td>
+    <td class="speed">30 ft, 50 ft fly</td>
+    <td class="notes"></td>
+    <td class="hiddennotes">
+      Giant fly, top target of giant spiders
+    </td>
+   </tr>
+   <tr class="PC">
+    <td class="controls"></td>
+    <td class="markercolor"></td>
+    <td class="name">Erdan Calabra</td>
+    <td class="hitpoints">43 / 43</td>
+    <td class="initbonus">+2</td>
+    <td class="initiative">0</td>
+    <td class="armorclass">16</td>
+    <td class="speed">30 ft</td>
+    <td class="notes"></td>
+    <td class="hiddennotes"></td>
+   </tr>
+   <tr class="PC">
+    <td class="controls"></td>
+    <td class="markercolor"></td>
+    <td class="name">Rowan Amakiir</td>
+    <td class="hitpoints">38 / 38</td>
+    <td class="initbonus">+4</td>
+    <td class="initiative">0</td>
+    <td class="armorclass">15</td>
+    <td class="speed">30 ft</td>
+    <td class="notes"></td>
+    <td class="hiddennotes"></td>
+   </tr>
+   <tr class="PC">
+    <td class="controls"></td>
+    <td class="markercolor"></td>
+    <td class="name">Vondal Frostbeard</td>
+    <td class="hitpoints">49 / 49</td>
+    <td class="initbonus">+1</td>
+    <td class="initiative">0</td>
+    <td class="armorclass">18</td>
+    <td class="speed">30 ft</td>
+    <td class="notes"></td>
+    <td class="hiddennotes"></td>
+   </tr>
+  </table>
+ </div id=container>
+
+ <!-- TODO: Below contents are never saved if edited in the browser.
+            Most DMs probably won't be editing HTML directly, so this
+            needs to be improved -->
+
+ <h2>Staging</h2>
+ <a href="#" onClick="randomizeInitiative()">Randomize Initiative</a>
+ <table id=stageTable>
+   <thead class="PC">
+    <th></th>
+    <th></th>
+    <th>Name</th>
+    <th>Health</th>
+    <th>Init Bonus</th>
+    <th>Initiative</th>
+    <th>AC</th>
+    <th>Speed</th>
+    <th>Notes</th>
+    <th>Hidden Notes</th>
+   </thead>
+ 
+   <tr class="NPC">
+    <td class="controls"></td>
+    <td class="markercolor"></td>
+    <td class="name">Ooze King</td>
+    <td class="hitpoints">49 / 49</td>
+    <td class="initbonus">+3</td>
+    <td class="initiative"></td>
+    <td class="armorclass">13</td>
+    <td class="speed">30 ft</td>
+    <td class="notes">Axe</td>
+    <td class="hiddennotes">CR4</td>
+   </tr>
+
+   <tr class="NPC">
+    <td class="controls"></td>
+    <td class="markercolor"></td>
+    <td class="name">Magma Ooze</td>
+    <td class="hitpoints">115 / 115</td>
+    <td class="initbonus">-5</td>
+    <td class="initiative"></td>
+    <td class="armorclass">14</td>
+    <td class="speed">10 ft, climb 10 ft.</td>
+    <td class="notes"></td>
+    <td class="hiddennotes">
+     CR5 Fire immune, cold vuln.<br>
+     Fifth Edition Foes p.179
+    </td>
+   </tr>
+
+   <tr class="NPC">
+    <td class="controls"></td>
+    <td class="markercolor"></td>
+    <td class="name">Slithering Tracker #1</td>
+    <td class="hitpoints">76 / 76</td>
+    <td class="initbonus">+5</td>
+    <td class="initiative"></td>
+    <td class="armorclass">15</td>
+    <td class="speed">30 ft, climb 30 ft</td>
+    <td class="notes"></td>
+    <td class="hiddennotes">
+      CR3 Hard to detect until attacks.<br>
+      Fifth Edition Foes p.215
+    </td>
+   </tr>
+
+   <tr class="NPC">
+    <td class="controls"></td>
+    <td class="markercolor"></td>
+    <td class="name">Slithering Tracker #2</td>
+    <td class="hitpoints">76 / 76</td>
+    <td class="initbonus">+5</td>
+    <td class="initiative"></td>
+    <td class="armorclass">15</td>
+    <td class="speed">30 ft, climb 30 ft</td>
+    <td class="notes"></td>
+    <td class="hiddennotes">
+      CR3 Hard to detect until attacks.<br>
+      Fifth Edition Foes p.215
+    </td>
+   </tr>
+ </table>
+
+<h2>Notes:</h2>
+<p>Ooze King casts 'mage armor' at start of combat, bumping AC to 16.</p>
+
+
+</body>
+</html>

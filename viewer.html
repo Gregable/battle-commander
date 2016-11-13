@@ -1,0 +1,126 @@
+<!doctype html>
+<html>
+<head>
+ <meta charset="utf-8">
+ <link href='https://fonts.googleapis.com/css?family=Lato' rel='stylesheet'>
+ <meta name="viewport" content="width=device-width,minimum-scale=1">
+ <title>Battle Viewer - Player View</title>
+ <link rel=battlecommander href="/commander">
+ <style>
+  table {
+   width: 100%;
+   border-collapse: collapse;
+   font-size: 20px;
+   text-align: left;
+   margin: 20px;
+  }
+  thead {
+   font-weight: bold;
+  }
+  tr.PC:nth-child(odd) {
+    background: #ccf;
+  }
+  tr.PC:nth-child(even) {
+    background: #f5f5ff;
+  }
+  tr.NPC:nth-child(odd) {
+    background: #ebb;
+  }
+  tr.NPC:nth-child(even) {
+    background: #fff5f5;
+  }
+  td,th {
+   padding: 8px;
+   white-space: nowrap;
+  }
+  td.notes {
+   width: 100%; 
+   white-space: normal;
+  }
+  .initbonus,.initiative,.hiddennotes,.controls {
+   display: none;
+  }
+  tr.NPC td.armorclass {
+   font-size: 0;
+  }
+  tr.NPC td.speed, tbody tr.NPC td.hitpoints {
+   font-size: 0;
+  }
+  td.hitpoints:after {
+   font-size: 20px;
+  }
+  .healthy td.hitpoints {
+   color: green;
+  }
+  .poor td.hitpoints {
+   color: red;
+  }
+  .dead td.hitpoints {
+   color: black;
+  }
+  tr.NPC.healthy td.hitpoints:after {
+   font-size: 20px;
+   content: "Healthy"
+  }
+  tr.NPC.poor td.hitpoints:after {
+   font-size: 20px;
+   content: "Poor"
+  }
+  tr.NPC.dead td.hitpoints:after {
+   font-size: 20px;
+   content: "Dead"
+  }
+  tr.dead {
+   text-decoration: line-through;
+  }
+  td.markercolor {
+   background-clip: content-box;
+  }
+  td.markercolor.red {
+   background-color: red;
+  }
+  td.markercolor.yellow {
+   background-color: #CCCC00;
+  }
+  td.markercolor.orange {
+   background-color: orange;
+  }
+  td.markercolor.blue {
+   background-color: blue;
+  }
+  td.markercolor.green {
+   background-color: green;
+  }
+ </style>
+</head>
+
+<body onLoad="startPolling()">
+ <script>
+   // Refresh the view twice a second by polling for changes from the
+   // battlecommander page. Only replace contents on change to avoid relayouts.
+   var contents = "";
+   function getStuff() {
+     var xhr = new XMLHttpRequest();
+     xhr.onreadystatechange = function() {
+       var newcontents = contents;
+       if (xhr.readyState == 4 && xhr.status == 200) {
+         newcontents = xhr.responseText;
+         if (newcontents !== contents) {
+           contents = newcontents
+           container.innerHTML = contents;
+         }
+       }
+     }
+     xhr.open("GET", "/shared", true);
+     xhr.send();
+   }
+   function startPolling() {
+     setInterval(getStuff, 500);
+   }
+ </script>
+
+ <!-- Contents from the commander view get populated into this div -->
+ <div id="container"></div>
+
+</body>
+</html>
