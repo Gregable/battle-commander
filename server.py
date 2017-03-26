@@ -1,13 +1,10 @@
+#!/usr/bin/env python
+
 import BaseHTTPServer
-import SimpleHTTPServer
-import SocketServer
-import cgi
 import os
-import re
-import string
 
 PORT = 8081
-ROOT = os.path.join(os.getenv('HOME'), 'github/battle-commander/')
+ROOT = os.path.dirname(os.path.realpath(__file__))
 
 # If true, commander.html will be overwritten with changes made
 # in the browser. This is useful to save state between encounters
