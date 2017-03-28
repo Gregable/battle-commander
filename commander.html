@@ -33,8 +33,10 @@
    width: 100%;
    white-space: normal;
   }
-  td.controls {
+  td.controls span {
    cursor: pointer;
+   margin-left: 8px;
+   margin-right: 8px;
   }
   #stageTable td.controls span.moveDown {
    display: none;
@@ -164,7 +166,7 @@
        cell.innerHTML = 
            '<span class="moveUp" onclick="moveUp(this)">↑</span>' +
            '<span class="moveDown" onclick="moveDown(this)">↓</span>' +
-           '<span class="duplicate" onclick="duplicate(this)">↭</span>';
+           '<span class="duplicate" onclick="duplicate(this)">+</span>';
      }
 
      // Set colorpicker listeners
