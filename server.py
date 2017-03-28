@@ -2,14 +2,11 @@
 
 import BaseHTTPServer
 import os
+import signal
+import argparse
 
-PORT = 8081
 ROOT = os.path.dirname(os.path.realpath(__file__))
-
-# If true, commander.html will be overwritten with changes made
-# in the browser. This is useful to save state between encounters
-# but not useful if developing.
-SAVE_STATE = False
+cmd_args = None
 
 COMMANDER = os.path.join(ROOT, 'commander.html')
 VIEWER    = os.path.join(ROOT, 'viewer.html')
@@ -78,7 +75,7 @@ class TransformingHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     global_SharedContents = self.rfile.read(clength)
     self.wfile.write('OK')
 
-    if SAVE_STATE:
+    if cmd_args.save_state:
       f = open(COMMANDER)
       contents = f.read()
       f.close()
@@ -94,7 +91,41 @@ class TransformingHandler(BaseHTTPServer.BaseHTTPRequestHandler):
       f.write(newcontents)
       f.close()
 
-httpd = BaseHTTPServer.HTTPServer(("", PORT), TransformingHandler)
 
-print "serving at port", PORT
-httpd.serve_forever()
+def SetUpSignalHandlers():
+  def SignalHandler( signum, frame ):
+    os._exit( 0 )
+
+  for sig in { signal.SIGTERM, signal.SIGINT }:
+    signal.signal( sig, SignalHandler )
+
+
+def ParseArguments():
+  parser = argparse.ArgumentParser()
+  parser.add_argument( '--port', type = int, default = 8081,
+                       help = 'The port to serve on.')
+  parser.add_argument( '--host', type = str, default = '127.0.0.1',
+                       help = 'The host to serve on.')
+  parser.add_argument( '--save-state', type = bool, default = False,
+                       help = 'If true, commander.html will be overwritten '
+                       'with changes made in the browser. This is useful to '
+                       'save state between encounters but not useful if '
+                       'developing.' )
+
+  args = parser.parse_args()
+  return args
+
+
+def Main():
+  global cmd_args
+  SetUpSignalHandlers()
+  cmd_args = ParseArguments()
+
+  httpd = BaseHTTPServer.HTTPServer(
+    (cmd_args.host, cmd_args.port), TransformingHandler)
+  print "serving at {}:{}".format(cmd_args.host, cmd_args.port)
+  httpd.serve_forever()
+
+
+if __name__ == '__main__':
+  Main()
